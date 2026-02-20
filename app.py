@@ -7,7 +7,7 @@ import os
 os.system("playwright install chromium")
 
 st.set_page_config(page_title="HKTVmall 除錯診斷", layout="wide")
-st.title("🔎 終極診斷模式：追蹤 21 號「已建立」 (精準網址版)")
+st.title("🔎 終極診斷模式：追蹤 21 號「已建立」 (精準文字點擊版)")
 
 def extract_total_count(text):
     if not text: return "0"
@@ -27,7 +27,6 @@ if st.button("🐛 開始單步診斷 (測 21 號的 CONFIRMED)"):
         st.warning("請先設定 Secrets！")
     else:
         now = datetime.utcnow() + timedelta(hours=8)
-        # 設定為 21 號
         target_date_str = (now + timedelta(days=1)).strftime("%Y-%m-%d")
         
         with st.status(f"🕵️ 偵探模式啟動，正在抓取 {target_date_str} 的資料...", expanded=True) as status:
@@ -44,8 +43,7 @@ if st.button("🐛 開始單步診斷 (測 21 號的 CONFIRMED)"):
                     page.locator('button[data-testid="繼續"]').click()
                     page.wait_for_timeout(5000)
                     
-                    # --- 2. 導航 (使用你提供的精準網址！) ---
-                    # 注意：這裡已經包含了 SAME_DAY_IN_HUB (8小時送貨)
+                    # --- 2. 導航 (使用你提供的帶有 SAME_DAY_IN_HUB 的精準網址) ---
                     target_url = (
                         f"https://merchant.shoalter.com/zh/order-management/orders/toship"
                         f"?bu=HKTV&deliveryType=STANDARD_DELIVERY&productReadyMethod=SAME_DAY_IN_HUB"
@@ -72,13 +70,14 @@ if st.button("🐛 開始單步診斷 (測 21 號的 CONFIRMED)"):
                     except Exception as e:
                         st.error(f"點擊清除全部失敗：{e}")
                     
-                    # --- 5. 勾選 CONFIRMED ---
+                    # --- 5. 🎯 終極修正：點擊「文字」而不是隱藏的 Checkbox ---
                     try:
-                        page.locator('input[value="CONFIRMED"]').click(force=True)
+                        # 讓機器人尋找選單中文字包含「已建立」的區塊，直接點擊該文字！
+                        page.locator('.ant-select-item-option-content').filter(has_text="已建立").click(force=True)
                         page.wait_for_timeout(2000)
-                        st.image(page.screenshot(), caption="動作 D：已勾選「CONFIRMED (已建立)」", use_container_width=True)
+                        st.image(page.screenshot(), caption="動作 D：已點擊「已建立」文字 (請確認是否有打勾)", use_container_width=True)
                     except Exception as e:
-                        st.error(f"勾選 CONFIRMED 失敗：{e}")
+                        st.error(f"點擊 已建立 失敗：{e}")
                         
                     # --- 6. 點擊套用 ---
                     try:
@@ -93,6 +92,7 @@ if st.button("🐛 開始單步診斷 (測 21 號的 CONFIRMED)"):
                         result_text = page.locator('span:has-text("結果")').last.inner_text(timeout=3000)
                         count = extract_total_count(result_text)
                         st.success(f"🎯 最終機器人抓到的數字為： **{count}**")
+                        st.info(f"💡 機器人看到的原始文字是： `{result_text}`")
                     except Exception:
                         st.error("找不到結果標籤！")
 
