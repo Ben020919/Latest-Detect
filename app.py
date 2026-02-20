@@ -7,7 +7,7 @@ import os
 os.system("playwright install chromium")
 
 st.set_page_config(page_title="HKTVmall 除錯診斷", layout="wide")
-st.title("🔎 終極診斷模式：追蹤 21 號「已建立」的每一個動作")
+st.title("🔎 終極診斷模式：追蹤 21 號「已建立」 (精準網址版)")
 
 def extract_total_count(text):
     if not text: return "0"
@@ -27,26 +27,28 @@ if st.button("🐛 開始單步診斷 (測 21 號的 CONFIRMED)"):
         st.warning("請先設定 Secrets！")
     else:
         now = datetime.utcnow() + timedelta(hours=8)
-        # 👉 改為抓取明天 (21號) 的日期
+        # 設定為 21 號
         target_date_str = (now + timedelta(days=1)).strftime("%Y-%m-%d")
         
-        with st.status(f"🕵️ 偵探模式啟動，正在監視機器人抓取 {target_date_str} 的每一個動作...", expanded=True) as status:
+        with st.status(f"🕵️ 偵探模式啟動，正在抓取 {target_date_str} 的資料...", expanded=True) as status:
             try:
                 with sync_playwright() as p:
                     browser = p.chromium.launch(headless=True)
                     context = browser.new_context(viewport={'width': 1920, 'height': 1080})
                     page = context.new_page()
                     
-                    # --- 1. 登入與導航 ---
+                    # --- 1. 登入 ---
                     page.goto("https://merchant.shoalter.com/login")
                     page.locator('#account').fill(USERNAME)
                     page.locator('#password').fill(PASSWORD)
                     page.locator('button[data-testid="繼續"]').click()
                     page.wait_for_timeout(5000)
                     
+                    # --- 2. 導航 (使用你提供的精準網址！) ---
+                    # 注意：這裡已經包含了 SAME_DAY_IN_HUB (8小時送貨)
                     target_url = (
                         f"https://merchant.shoalter.com/zh/order-management/orders/toship"
-                        f"?bu=HKTV&deliveryType=STANDARD_DELIVERY&productReadyMethod=STANDARD_DELIVERY_ALL"
+                        f"?bu=HKTV&deliveryType=STANDARD_DELIVERY&productReadyMethod=SAME_DAY_IN_HUB"
                         f"&searchType=ORDER_ID&storefrontCodes=H0956004%2CH0956006%2CH0956007%2CH0956008%2CH0956010%2CH0956012"
                         f"&dateType=PICK_UP_DATE&startDate={target_date_str}&endDate={target_date_str}"
                         f"&pageSize=20&pageNumber=1&sortColumn=orderDate&waybillStatuses="
@@ -54,24 +56,15 @@ if st.button("🐛 開始單步診斷 (測 21 號的 CONFIRMED)"):
                     page.goto(target_url)
                     page.wait_for_timeout(6000)
                     
-                    # 點擊商戶8小時送貨
-                    try:
-                        page.get_by_text("商戶8小時送貨").first.click(force=True)
-                        page.wait_for_timeout(3000)
-                    except:
-                        pass
-
                     st.markdown(f"### 📸 {target_date_str} 動作監視紀錄")
+                    st.image(page.screenshot(), caption="動作 A：剛進入 21 號 8小時送貨頁面", use_container_width=True)
                     
-                    # --- 動作 A：初始狀態 ---
-                    st.image(page.screenshot(), caption="動作 A：剛進入 21 號頁面（尚未操作選單）", use_container_width=True)
-                    
-                    # --- 動作 B：展開選單 ---
+                    # --- 3. 展開選單 ---
                     page.locator('div.ant-select-selector:has-text("運單狀態")').click(force=True)
                     page.wait_for_timeout(2000)
                     st.image(page.screenshot(), caption="動作 B：已點擊「運單狀態」展開選單", use_container_width=True)
                     
-                    # --- 動作 C：點擊清除全部 ---
+                    # --- 4. 點擊清除全部 ---
                     try:
                         page.locator('button[data-testid="清除全部"]').click(timeout=2000, force=True)
                         page.wait_for_timeout(2000)
@@ -79,23 +72,23 @@ if st.button("🐛 開始單步診斷 (測 21 號的 CONFIRMED)"):
                     except Exception as e:
                         st.error(f"點擊清除全部失敗：{e}")
                     
-                    # --- 動作 D：勾選 CONFIRMED ---
+                    # --- 5. 勾選 CONFIRMED ---
                     try:
                         page.locator('input[value="CONFIRMED"]').click(force=True)
                         page.wait_for_timeout(2000)
-                        st.image(page.screenshot(), caption="動作 D：已嘗試勾選「CONFIRMED (已建立)」", use_container_width=True)
+                        st.image(page.screenshot(), caption="動作 D：已勾選「CONFIRMED (已建立)」", use_container_width=True)
                     except Exception as e:
                         st.error(f"勾選 CONFIRMED 失敗：{e}")
                         
-                    # --- 動作 E：點擊套用 ---
+                    # --- 6. 點擊套用 ---
                     try:
                         page.locator('button[data-testid="套用"]').click(force=True)
-                        page.wait_for_timeout(6000) # 等待 API 回傳
-                        st.image(page.screenshot(), caption="動作 E：點擊「套用」並等待 6 秒後的最終結果", use_container_width=True)
+                        page.wait_for_timeout(6000) # 等待 6 秒讓 API 回傳
+                        st.image(page.screenshot(), caption="動作 E：點擊「套用」後的最終結果", use_container_width=True)
                     except Exception as e:
                         st.error(f"點擊套用失敗：{e}")
                     
-                    # --- 最終抓取 ---
+                    # --- 7. 最終抓取 ---
                     try:
                         result_text = page.locator('span:has-text("結果")').last.inner_text(timeout=3000)
                         count = extract_total_count(result_text)
