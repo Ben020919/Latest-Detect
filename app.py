@@ -7,7 +7,7 @@ import os
 os.system("playwright install chromium")
 
 st.set_page_config(page_title="HKTVmall 除錯診斷", layout="wide")
-st.title("🔎 終極診斷模式：追蹤 21 號「已建立」 (精準文字點擊版)")
+st.title("🔎 終極診斷模式：追蹤 21 號「已建立」 (JS 強制點擊版)")
 
 def extract_total_count(text):
     if not text: return "0"
@@ -43,7 +43,7 @@ if st.button("🐛 開始單步診斷 (測 21 號的 CONFIRMED)"):
                     page.locator('button[data-testid="繼續"]').click()
                     page.wait_for_timeout(5000)
                     
-                    # --- 2. 導航 (使用你提供的帶有 SAME_DAY_IN_HUB 的精準網址) ---
+                    # --- 2. 導航 ---
                     target_url = (
                         f"https://merchant.shoalter.com/zh/order-management/orders/toship"
                         f"?bu=HKTV&deliveryType=STANDARD_DELIVERY&productReadyMethod=SAME_DAY_IN_HUB"
@@ -58,9 +58,12 @@ if st.button("🐛 開始單步診斷 (測 21 號的 CONFIRMED)"):
                     st.image(page.screenshot(), caption="動作 A：剛進入 21 號 8小時送貨頁面", use_container_width=True)
                     
                     # --- 3. 展開選單 ---
-                    page.locator('div.ant-select-selector:has-text("運單狀態")').click(force=True)
-                    page.wait_for_timeout(2000)
-                    st.image(page.screenshot(), caption="動作 B：已點擊「運單狀態」展開選單", use_container_width=True)
+                    try:
+                        page.locator('div.ant-select-selector:has-text("運單狀態")').click(force=True)
+                        page.wait_for_timeout(2000)
+                        st.image(page.screenshot(), caption="動作 B：已點擊「運單狀態」展開選單", use_container_width=True)
+                    except Exception as e:
+                        st.error(f"打開選單失敗：{e}")
                     
                     # --- 4. 點擊清除全部 ---
                     try:
@@ -70,14 +73,14 @@ if st.button("🐛 開始單步診斷 (測 21 號的 CONFIRMED)"):
                     except Exception as e:
                         st.error(f"點擊清除全部失敗：{e}")
                     
-                    # --- 5. 🎯 終極修正：點擊「文字」而不是隱藏的 Checkbox ---
+                    # --- 5. 🎯 終極修正：用 JavaScript 強制觸發底層 input 打勾 ---
                     try:
-                        # 讓機器人尋找選單中文字包含「已建立」的區塊，直接點擊該文字！
-                        page.locator('.ant-select-item-option-content').filter(has_text="已建立").click(force=True)
+                        # 這行指令會直接命令瀏覽器核心，對 value="CONFIRMED" 的元素執行 click()，無視所有障礙物！
+                        page.locator('input[value="CONFIRMED"]').evaluate("node => node.click()")
                         page.wait_for_timeout(2000)
-                        st.image(page.screenshot(), caption="動作 D：已點擊「已建立」文字 (請確認是否有打勾)", use_container_width=True)
+                        st.image(page.screenshot(), caption="動作 D：JS 強制打勾「CONFIRMED」 (請確認是否出現藍勾勾)", use_container_width=True)
                     except Exception as e:
-                        st.error(f"點擊 已建立 失敗：{e}")
+                        st.error(f"JS 強制打勾 失敗：{e}")
                         
                     # --- 6. 點擊套用 ---
                     try:
@@ -92,7 +95,6 @@ if st.button("🐛 開始單步診斷 (測 21 號的 CONFIRMED)"):
                         result_text = page.locator('span:has-text("結果")').last.inner_text(timeout=3000)
                         count = extract_total_count(result_text)
                         st.success(f"🎯 最終機器人抓到的數字為： **{count}**")
-                        st.info(f"💡 機器人看到的原始文字是： `{result_text}`")
                     except Exception:
                         st.error("找不到結果標籤！")
 
