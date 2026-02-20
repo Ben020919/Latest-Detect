@@ -8,7 +8,7 @@ import os
 os.system("playwright install chromium")
 
 st.set_page_config(page_title="HKTVmall 爬蟲開發", layout="wide")
-st.title("🛠️ 第三關：精準抓取數字測試 (極速防疊加版)")
+st.title("🛠️ 第三關：精準抓取數字測試 (Ant Design 防錯版)")
 
 # --- 輔助函數：提取數字 ---
 def extract_total_count(text):
@@ -31,7 +31,7 @@ today_str = now.strftime("%Y-%m-%d")
 tomorrow_str = (now + timedelta(days=1)).strftime("%Y-%m-%d")
 
 test_date_option = st.radio(
-    "📅 請選擇你要測試的日期：", 
+    "📅 請選擇你要測試的「入倉日期 (PICK_UP_DATE)」：", 
     [f"今日訂單 ({today_str})", f"明日訂單 ({tomorrow_str})"]
 )
 
@@ -57,7 +57,7 @@ if st.button("🚀 執行精準抓取測試"):
                     page.locator('button[data-testid="繼續"]').click()
                     page.wait_for_timeout(5000)
                     
-                    # 2. 組合目標網址並前往
+                    # 2. 組合目標網址 (帶入你選擇的入倉日期)
                     target_url = (
                         f"https://merchant.shoalter.com/zh/order-management/orders/toship"
                         f"?bu=HKTV&deliveryType=STANDARD_DELIVERY&productReadyMethod=STANDARD_DELIVERY_ALL"
@@ -66,9 +66,9 @@ if st.button("🚀 執行精準抓取測試"):
                         f"&pageSize=20&pageNumber=1&sortColumn=orderDate&waybillStatuses="
                     )
                     page.goto(target_url)
-                    page.wait_for_timeout(5000) 
+                    page.wait_for_timeout(6000) 
                     
-                    # 3. 點擊商戶8小時送貨 (只需點一次)
+                    # 3. 點擊商戶8小時送貨
                     try:
                         eight_hour_tab = page.get_by_text("商戶8小時送貨").first
                         eight_hour_tab.click(force=True)
@@ -86,26 +86,25 @@ if st.button("🚀 執行精準抓取測試"):
                         
                         # 展開選單
                         page.locator('div.ant-select-selector:has-text("運單狀態")').click(force=True)
-                        page.wait_for_timeout(1000)
+                        page.wait_for_timeout(1500) # 給動畫一點時間
                         
-                        # 嘗試點擊清除全部
+                        # 點擊「清除全部」
                         try:
-                            page.locator('button[data-testid="清除全部"]').click(timeout=1000, force=True)
-                            page.wait_for_timeout(500)
+                            page.locator('button[data-testid="清除全部"]').click(timeout=2000, force=True)
+                            page.wait_for_timeout(1000)
                         except:
                             pass
                         
-                        # 🚀 終極防呆：手動把「不是我們要的狀態」通通取消打勾！
-                        for other_val, _ in statuses:
-                            if other_val != status_val:
-                                try:
-                                    page.locator(f'input[value="{other_val}"]').uncheck(force=True)
-                                except:
-                                    pass
-                        
-                        # 勾選目標狀態
-                        page.locator(f'input[value="{status_val}"]').check(force=True) 
-                        page.wait_for_timeout(800)
+                        # 🚀 防錯點擊法：先檢查狀態，沒打勾才點擊
+                        checkbox = page.locator(f'input[value="{status_val}"]')
+                        try:
+                            if not checkbox.is_checked():
+                                checkbox.click(force=True)
+                        except Exception:
+                            # 備用方案：如果 is_checked 判斷失敗，硬點一次
+                            checkbox.click(force=True)
+                            
+                        page.wait_for_timeout(1000)
                         
                         # 點擊套用
                         page.locator('button[data-testid="套用"]').click(force=True)
@@ -120,7 +119,6 @@ if st.button("🚀 執行精準抓取測試"):
                             date_data[status_val] = count
                             st.write(f"👉 {status_name} 抓取成功： **{count}** 筆")
                         except Exception as e:
-                            # 如果數字是 0，找不到「結果」就會跳到這裡
                             date_data[status_val] = "0"
                             st.write(f"👉 {status_name} 抓取結果為： **0** 筆 (無資料)")
                             
